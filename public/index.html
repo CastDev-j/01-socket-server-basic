@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minichat Mejorado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'chat-own': '#E5E7EB',     // Gris claro para mensajes propios
+                        'chat-other': '#F3F4F6',    // Gris muy claro para mensajes recibidos
+                        'chat-text': '#1F2937',     // Gris oscuro para texto
+                        'chat-accent': '#4B5563'    // Gris medio para nombres
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">Minichat</h1>
+
+        <div class="bg-white rounded-lg shadow-md p-4 mb-4 h-[32rem] overflow-y-auto flex flex-col space-y-3" id="chat-container">
+            <div id="connection-message" class="text-gray-500 text-center py-4 flex-grow flex items-center justify-center">
+                Conectando al servidor...
+            </div>
+        </div>
+
+        <div class="flex gap-2">
+            <input type="text" id="message-input"
+                class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all"
+                placeholder="Escribe un mensaje..." autocomplete="off">
+            <button id="send-button"
+                class="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 active:bg-gray-800 transition-colors disabled:opacity-50"
+                disabled>
+                Enviar
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.js"
+        integrity="sha512-8BHxHDLsOHx+flIrQ0DrZcea7MkHqRU5GbTHmbdzMRnAaoCIkZ97PqZcXJkKZckMMhqfoeaJE+DNUVuyoQsO3Q=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const socket = io('http://localhost:8080');
+            const chatContainer = document.getElementById('chat-container');
+            const connectionMessage = document.getElementById('connection-message');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            
+            // Función para añadir mensajes al chat
+            const addMessage = (sender, message, isOwn = false) => {
+                const messageElement = document.createElement('div');
+                messageElement.className = `p-3 rounded-lg max-w-[85%] ${isOwn ? 'bg-chat-own ml-auto' : 'bg-chat-other'}`;
+                messageElement.innerHTML = `
+                    <strong class="text-chat-accent font-medium">${sender}:</strong>
+                    <p class="text-chat-text mt-1">${message}</p>
+                `;
+                
+                chatContainer.appendChild(messageElement);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            };
+            
+            // Manejar envío de mensajes
+            const handleSendMessage = () => {
+                const message = messageInput.value.trim();
+                if (message) {
+                    addMessage('Tú', message, true);
+                    
+                    socket.emit('chat-message', {
+                        name: 'Usuario',
+                        message
+                    });
+                    
+                    messageInput.value = '';
+                    updateSendButtonState();
+                    messageInput.focus();
+                }
+            };
+            
+            // Actualizar estado del botón de enviar
+            const updateSendButtonState = () => {
+                sendButton.disabled = !messageInput.value.trim();
+            };
+            
+            // Eventos del socket
+            socket.on('connect', () => {
+                connectionMessage.remove();
+                addMessage('Sistema', 'Conectado al servidor', false);
+                updateSendButtonState();
+            });
+            
+            socket.on('disconnect', () => {
+                addMessage('Sistema', 'Desconectado del servidor', false);
+                updateSendButtonState();
+            });
+            
+            socket.on('connect_error', () => {
+                connectionMessage.textContent = 'Error al conectar al servidor';
+            });
+            
+            socket.on('server-message', (data) => {
+                addMessage(data.name, data.message);
+            });
+            
+            // Eventos del DOM
+            messageInput.addEventListener('input', updateSendButtonState);
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleSendMessage();
+                }
+            });
+            sendButton.addEventListener('click', handleSendMessage);
+            
+            // Enfocar el input al cargar
+            messageInput.focus();
+        });
+    </script>
+</body>
+
+</html>
